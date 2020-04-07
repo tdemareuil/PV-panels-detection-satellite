@@ -1,2 +1,2 @@
-# Satellite_image_classification_CNN
-Detecting Solar Panels presence in satellite imagery.
+# Satellite_image_analysis_CNN
+Detecting Solar Panels in satellite imagery.
