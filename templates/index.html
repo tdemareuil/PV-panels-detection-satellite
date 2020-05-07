@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>PV detection app - Index</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+   integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+   crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+   integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+   crossorigin=""></script>
+  <script type="text/javascript" src="https://maps.google.com/maps/api/js?key=AIzaSyCTIn22N0OJ6j4PjvTkqi8ROqN_XhKZUyQ"></script>
+  <script type="text/javascript" src="https://www.datavis.fr/assets/lib/leaflet/leaflet-google-correct-v1.js"></script>
+  <link rel="stylesheet" type="text/css" href="https://cdn-geoweb.s3.amazonaws.com/esri-leaflet-geocoder/0.0.1-beta.5/esri-leaflet-geocoder.css">
+  <script src="https://cdn-geoweb.s3.amazonaws.com/esri-leaflet/0.0.1-beta.5/esri-leaflet.js"></script>
+  <script src="https://cdn-geoweb.s3.amazonaws.com/esri-leaflet-geocoder/0.0.1-beta.5/esri-leaflet-geocoder.js"></script>
+  <style>
+    .navbar {
+      margin-bottom: 0;
+      border-radius: 0;
+    }
+    footer {
+      background-color: #f2f2f2;
+      padding: 25px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="jumbotron" >
+  <div class="container text-center">
+    <h2>Detect solar panels with AI <br><br> Total E-LAB</h2>
+  </div>
+</div>
+
+<div class="container-fluid bg-3 text-center">    
+  <form action="/success" method="post" enctype="multipart/form-data" >
+    
+    <h3>Choose an image, upload your own or select coordinates on the map</h3>
+    <br>
+    <br>
+
+    <div class="row">
+      <div class="col-sm-1">
+      </div>
+
+      <div class="col-sm-2">
+        <p> 
+          <label class="radio-inline">
+            <input type="radio" name="test" value="static/10sfg735685_01_07.png" required>
+            Option 1
+          </label>
+        </p>
+        <img src="../static/10sfg735685_01_07.png" class="img-square" width="200" height="200" alt="Image 1">
+      </div>
+
+      <div class="col-sm-2"> 
+        <p>
+          <label class="radio-inline">
+            <input type="radio" name="test" value="static/10sfg750670_03_09.png" required>
+            Option 2
+          </label>
+        </p>
+        <img src="../static/10sfg750670_03_09.png" class="img-square" width="200" height="200" alt="Image 2">
+      </div>
+      
+      <div class="col-sm-2">
+        <p>
+          <label class="radio-inline">
+            <input type="radio" name="test"  value="static/10sfg750670_09_04.png" required>
+            Option 3
+          </label>
+        </p>
+        <img src="../static/10sfg750670_09_04.png" class="img-square" width="200" height="200" alt="Image 3">
+      </div>
+
+      <div class="col-sm-2"> 
+        <p>
+          <label class="radio-inline">
+            <input type="radio" name="test" value="static/10sfg750685_02_09.png" required>
+            Option 4
+          </label>
+        </p>
+        <img src="../static/10sfg750685_02_09.png" class="img-square" width="200" height="200" alt="Image 4">
+      </div>
+
+      <div class="col-sm-2">
+        <p>
+          <label class="radio-inline">
+            <input type="radio" name="test" value="static/10sfg750685_03_08.png" required>
+            Option 5
+          </label>
+        </p>
+        <img src="../static/10sfg750685_03_08.png" class="img-square" width="200" height="200" alt="Image 5">
+      </div>
+      
+      <div class="col-sm-1">
+      </div>
+    </div>
+  </form>
+</div>
+
+<br/>
+<br/>
+<br/>
+
+<center>
+  <span class="btn btn-default btn-file">
+    <input type="file" name="file" required>
+  </span>
+  <input type="submit" value="Upload your image" class="btn btn-primary" required>
+</center>
+
+<br/>
+<br/>
+<br/>
+
+<center>
+<div id="mapid" style="width: 700px; height: 500px;"></div>
+  <script>
+  // Define the Leaflet default coordinates and zoom level
+  var map = L.map('mapid').setView([48.89, 2.24], 13);
+  
+  // Set up the map layers
+  var osmLayer = L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://osm.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 18
+  });
+  var ggRoadmap = new L.Google('ROADMAP');
+  var ggSatellite = new L.Google('').addTo(map); // We add this one as default map
+  var ggTerrain = new L.Google('TERRAIN');
+  var ggHybrid = new L.Google('HYBRID');
+
+  // Add layer control
+  map.addControl(new L.Control.Layers( {
+      'OpenStreetMap': osmLayer,
+      'Google Roadmap' : ggRoadmap, 
+      'Google Satellite': ggSatellite, 
+      'Google Terrain (Relief)': ggTerrain, 
+      'Google Hybrid' : ggHybrid
+      }, {})
+  );
+
+  // Add a little circle marker with a pop-up on Total's HQ
+  // L.marker([48.893004, 2.243376]).addTo(map)
+  L.circle([48.893004, 2.243376], {
+    color: 'red',
+    fillColor: '#f03',
+    fillOpacity: 0.5,
+    radius: 50
+  }).addTo(map)
+  .bindPopup("<strong>Total Tour Coupole</strong>").openPopup();
+
+  // Add the possibility to click wherever on the map to see coordinates
+  var popup = L.popup();
+  function onMapClick(e) {
+      popup
+          .setLatLng(e.latlng)
+          .setContent(e.latlng.toString())
+          .openOn(map);
+  }
+  map.on('click', onMapClick);
+
+  // With the code below we could display an alert instead of a popup
+  // function onMapClick(e) {
+  //   alert("You clicked the map at " + e.latlng);
+  // }
+  // map.on('click', onMapClick);
+
+  // Code to be modified
+  // This will create an URL containing the coordinates as HTML GET parameters
+  // We can then retrieve these parameters in our Flask app
+  // map.on('click', 
+  //   function(e){
+  //       var coord = e.latlng;
+  //       var lat = coord.lat;
+  //       var lng = coord.lng;
+  //       var newMarker = L.marker(e.latlng, {draggable:'true'}).addTo(mymap)
+  //       ;
+  // });
+
+  // Add a scale
+  L.control.scale().addTo(map);
+
+  // Add a search bar
+  var searchControl = new L.esri.Controls.Geosearch().addTo(map);
+  var results = new L.LayerGroup().addTo(map);
+  searchControl.on('results', function(data){
+    results.clearLayers()
+    map.closePopup();
+    for (var i = data.results.length - 1; i >= 0; i--) {
+      results.addLayer(L.marker(data.results[i].latlng));
+    }
+  });
+
+</script>
+</center>
+
+<br>
+<br>
+
+</body>
+
+</html>

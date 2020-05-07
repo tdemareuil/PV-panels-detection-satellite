@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>PV detection app - Success</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+  <!-- I can't manage to have these 2 lines show the progress bar I want 
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pace-theme-big-counter.tmpl.css') }}">
+  <script type="text/javascript" src="{{ url_for('static', filename='js/pace.min.js') }}"></script> -->
+  
+  <style>
+    .navbar {
+      margin-bottom: 0;
+      border-radius: 0;
+    }
+    footer {
+      background-color: #f2f2f2;
+      padding: 25px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="jumbotron">
+  <div class="container text-center">
+    <h2>Detect solar panels with AI <br><br> Total E-LAB</h2>      
+  </div>
+</div>
+  
+<div class="container-fluid bg-3 text-center">    
+  <div class="row">
+
+    <div class="col-sm-2">
+    </div>
+
+    <div class="col-sm-4"> 
+      <h3>Detection result</h3>
+      <img src="../static/result.png" class="img-responsive" style="width:100%" alt="Image">
+    </div>
+
+    <div class="col-sm-4"> 
+      <h3>Detection mask</h3>
+      <img src="../static/mask.png" class="img-responsive" style="width:100%" alt="Image">
+    </div>
+
+    <div class="col-sm-2">   
+    </div>  
+  </div>
+</div>
+
+<br/>
+
+<script>
+  $.getJSON("../static/detection_info.json", function( data ) {
+  var items = [];
+  $.each( data, function( key, val ) {
+    items.push( "<li id='" + key + "'>" + val + "</li>" );
+  });
+ 
+  $( "<ul/>", {
+    "class": "my-new-list",
+    html: items.join( "" )
+  }).appendTo( "body" );
+});
+</script>
+
+<div class="container-fluid bg-3 text-center">
+  <h3>Detection details</h3>
+  <br>
+
+    <script>
+        $.getJSON('../static/detection_info.json', function (data){
+        html = ''
+            $.each(data, function(key, value){
+                html += "<div class=\"row\"></div>";
+                html += "<div class=\"cell\">" + value["Successful detection"] + "</div>";
+                html += "<div class=\"cell\">" + value["Number of detected solar arrays"]  + "</div>";
+                html += "<div class=\"cell\">" + value["Total surface of detected solar arrays"]   + "</div>";
+                html += "<div class=\"cell\">" + value["Detection confidence level"]  + "</div>";
+            });
+            html += "</div>";
+            $(".table").append(html);
+        });
+    </script>
+    <div class="table"></div>
+</div>
+
+<br/>
+<br/>
+
+</body>
+
+</html>
