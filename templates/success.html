@@ -8,11 +8,6 @@
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
-
-  <!-- I can't manage to have these 2 lines show the progress bar I want 
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pace-theme-big-counter.tmpl.css') }}">
-  <script type="text/javascript" src="{{ url_for('static', filename='js/pace.min.js') }}"></script> -->
-  
   <style>
     .navbar {
       margin-bottom: 0;
@@ -21,6 +16,22 @@
     footer {
       background-color: #f2f2f2;
       padding: 25px;
+    }
+    table, th, td {
+      border: 1px solid black;
+      border-collapse: collapse;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    th, td {
+      padding: 15px;
+      text-align: left;
+    }
+    table tr:nth-child(even) {
+      background-color: #eee;
+    }
+    table tr:nth-child(odd) {
+     background-color: #fff;
     }
   </style>
 </head>
@@ -41,58 +52,66 @@
 
     <div class="col-sm-4"> 
       <h3>Detection result</h3>
-      <img src="../static/result.png" class="img-responsive" style="width:100%" alt="Image">
+      <img src="../inference/result.png" class="img-responsive" style="width:100%" alt="Image not loaded">
     </div>
 
     <div class="col-sm-4"> 
       <h3>Detection mask</h3>
-      <img src="../static/mask.png" class="img-responsive" style="width:100%" alt="Image">
+      <img src="../inference/mask.png" class="img-responsive" style="width:100%" alt="Image not loaded">
     </div>
 
-    <div class="col-sm-2">   
+    <div class="col-sm-2">
     </div>  
   </div>
 </div>
 
-<br/>
-
-<script>
-  $.getJSON("../static/detection_info.json", function( data ) {
-  var items = [];
-  $.each( data, function( key, val ) {
-    items.push( "<li id='" + key + "'>" + val + "</li>" );
-  });
- 
-  $( "<ul/>", {
-    "class": "my-new-list",
-    html: items.join( "" )
-  }).appendTo( "body" );
-});
-</script>
+<br>
 
 <div class="container-fluid bg-3 text-center">
   <h3>Detection details</h3>
   <br>
+  <table border="1" class="dataframe">
+    <tbody>
+      {% for key, value in data.items() %}
+      <tr>
+        <th>{{ key }}</th>
+        <td>{{ value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
-    <script>
-        $.getJSON('../static/detection_info.json', function (data){
-        html = ''
-            $.each(data, function(key, value){
-                html += "<div class=\"row\"></div>";
-                html += "<div class=\"cell\">" + value["Successful detection"] + "</div>";
-                html += "<div class=\"cell\">" + value["Number of detected solar arrays"]  + "</div>";
-                html += "<div class=\"cell\">" + value["Total surface of detected solar arrays"]   + "</div>";
-                html += "<div class=\"cell\">" + value["Detection confidence level"]  + "</div>";
-            });
-            html += "</div>";
-            $(".table").append(html);
-        });
-    </script>
-    <div class="table"></div>
+  <!-- 
+  Tentative js script to get JSON with AJAX / jQuery and build table.
+  I couldn't manage to make it work, so I used Jinja2 templating instead (see table above).
+  
+  <script>
+  $.getJSON('inference/detection_info.json', function(data)
+    {console.log(data);
+    var tr = data
+    for (var i = 0; i < data.length; i++) {
+      var tr = $('<tr/>');
+      // Indexing into data for each td element
+      $(tr).append("<td>" + data["Number of detected solar arrays"] + "</td>");
+      $(tr).append("<td>" + data["Total surface of detected solar arrays"] + "</td>");
+      $(tr).append("<td>" + data["Detection confidence level"] + "</td>");
+      $('.table1').append(tr);
+      }
+    });
+  </script>
+  -->
 </div>
 
-<br/>
-<br/>
+<br>
+<br>
+<br>
+<br>
+
+<footer>
+  <p style="opacity: 0.3" align="center"> 
+    &copy; 2020 - Total E-LAB - Thomas de Mareuil
+  </p>
+</footer> 
 
 </body>
 

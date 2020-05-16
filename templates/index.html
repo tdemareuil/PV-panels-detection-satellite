@@ -5,9 +5,9 @@
   <title>PV detection app - Index</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
    integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
    crossorigin=""/>
@@ -28,182 +28,262 @@
       background-color: #f2f2f2;
       padding: 25px;
     }
+    div#loading {
+    display: none;
+    position:fixed;
+    top:0px;
+    right:0px;
+    width:100%;
+    height:100%;
+    background-image: url(../static/solar_loader.gif);
+    background-repeat:no-repeat;
+    background-position:center;
+    background-size: 110px 110px;
+    z-index:10;
+    cursor: wait;
+    }
   </style>
 </head>
 
 <body>
 
-<div class="jumbotron" >
-  <div class="container text-center">
-    <h2>Detect solar panels with AI <br><br> Total E-LAB</h2>
-  </div>
-</div>
+<div id="loading"></div>
 
-<div class="container-fluid bg-3 text-center">    
-  <form action="/success" method="post" enctype="multipart/form-data" >
-    
-    <h3>Choose an image, upload your own or select coordinates on the map</h3>
-    <br>
-    <br>
+<div id="content">
 
-    <div class="row">
-      <div class="col-sm-1">
-      </div>
-
-      <div class="col-sm-2">
-        <p> 
-          <label class="radio-inline">
-            <input type="radio" name="test" value="static/10sfg735685_01_07.png" required>
-            Option 1
-          </label>
-        </p>
-        <img src="../static/10sfg735685_01_07.png" class="img-square" width="200" height="200" alt="Image 1">
-      </div>
-
-      <div class="col-sm-2"> 
-        <p>
-          <label class="radio-inline">
-            <input type="radio" name="test" value="static/10sfg750670_03_09.png" required>
-            Option 2
-          </label>
-        </p>
-        <img src="../static/10sfg750670_03_09.png" class="img-square" width="200" height="200" alt="Image 2">
-      </div>
-      
-      <div class="col-sm-2">
-        <p>
-          <label class="radio-inline">
-            <input type="radio" name="test"  value="static/10sfg750670_09_04.png" required>
-            Option 3
-          </label>
-        </p>
-        <img src="../static/10sfg750670_09_04.png" class="img-square" width="200" height="200" alt="Image 3">
-      </div>
-
-      <div class="col-sm-2"> 
-        <p>
-          <label class="radio-inline">
-            <input type="radio" name="test" value="static/10sfg750685_02_09.png" required>
-            Option 4
-          </label>
-        </p>
-        <img src="../static/10sfg750685_02_09.png" class="img-square" width="200" height="200" alt="Image 4">
-      </div>
-
-      <div class="col-sm-2">
-        <p>
-          <label class="radio-inline">
-            <input type="radio" name="test" value="static/10sfg750685_03_08.png" required>
-            Option 5
-          </label>
-        </p>
-        <img src="../static/10sfg750685_03_08.png" class="img-square" width="200" height="200" alt="Image 5">
-      </div>
-      
-      <div class="col-sm-1">
-      </div>
+  <div class="jumbotron" >
+    <div class="container text-center">
+      <h2>Detect solar panels with AI <br><br> Total E-LAB</h2>
     </div>
+  </div>
+
+  <!-- First form: default images -->
+  <div class="container-fluid bg-3 text-center">    
+    <form action="/success" method="post" enctype="multipart/form-data" >
+      
+      <br>
+      <h3>Choose an image, upload your own or select coordinates from the map</h3>
+      <br>
+      <br>
+      <br>
+
+      <div class="row">
+        <div class="col-sm-1">
+        </div>
+
+        <div class="col-sm-2">
+          <p> 
+            <input type="radio" name="test" value="10sfg735685_01_07.png" required>
+            <label class="radio-inline">Option 1</label>
+          </p>
+          <img src="../static/10sfg735685_01_07.png" class="img-square" width="200" height="200">
+        </div>
+
+        <div class="col-sm-2"> 
+          <p>
+            <input type="radio" name="test" value="10sfg750670_03_09.png" required>
+            <label class="radio-inline">Option 2</label>
+          </p>
+          <img src="../static/10sfg750670_03_09.png" class="img-square" width="200" height="200">
+        </div>
+        
+        <div class="col-sm-2">
+          <p>
+            
+            <input type="radio" name="test" value="10sfg750670_09_04.png" required>
+            <label class="radio-inline">Option 3</label>
+          </p>
+          <img src="../static/10sfg750670_09_04.png" class="img-square" width="200" height="200">
+        </div>
+
+        <div class="col-sm-2"> 
+          <p>
+            <input type="radio" name="test" value="10sfg750685_02_09.png" required>
+            <label class="radio-inline">Option 4</label>
+          </p>
+          <img src="../static/10sfg750685_02_09.png" class="img-square" width="200" height="200">
+        </div>
+
+        <div class="col-sm-2">
+          <p>
+            <input type="radio" name="test" value="10sfg750685_03_08.png" required>
+            <label class="radio-inline">Option 5</label>
+          </p>
+          <img src="../static/10sfg750685_03_08.png" class="img-square" width="200" height="200">
+        </div>
+        
+        <div class="col-sm-1">
+        </div>
+      </div>
+    
+      <br>
+      <input type="submit" value="Submit default image" onclick="loading();">
+    </form>
+  </div>
+
+  <br>
+  <br>
+  <br>
+  <br>
+
+  <!-- Second form: upload images -->
+  <center>
+  <form action="/success" method="post" enctype="multipart/form-data" >
+    <center>
+      <span class="btn btn-default btn-file">
+        <input type="file" name="file" required>
+      </span>
+      <input type="submit" value="Upload your image" onclick="loading();">
+      <!-- possible button styling: class="btn btn-primary" -->
+    </center>
   </form>
-</div>
+  </center>
 
-<br/>
-<br/>
-<br/>
+  <br/>
+  <br/>
+  <br/>
+  <br/>
+  <br/>
 
-<center>
-  <span class="btn btn-default btn-file">
-    <input type="file" name="file" required>
-  </span>
-  <input type="submit" value="Upload your image" class="btn btn-primary" required>
-</center>
+  <!-- Third form: Leaflet map and input coordinates -->
+  <div class="row">
+    <div class="col-12 col-md-8" align="center"> 
+      <div id="map" style="width: 700px; height: 500px"></div>
+      <script>
+      // Define the Leaflet default coordinates and zoom level
+      var map = L.map('map').setView([48.8930, 2.2433], 13);
+      
+      // Set up the map layers
+      var osmLayer = L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://osm.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 18
+      });
+      // var ggRoadmap = new L.Google('ROADMAP');
+      var ggSatellite = new L.Google('').addTo(map); // We add this one as default map
+      var ggTerrain = new L.Google('TERRAIN');
+      var ggHybrid = new L.Google('HYBRID');
 
-<br/>
-<br/>
-<br/>
+      // Add layer control
+      map.addControl(new L.Control.Layers( {
+          'OpenStreetMap': osmLayer,
+          // 'Google Roadmap' : ggRoadmap, 
+          'Google Satellite': ggSatellite, 
+          'Google Terrain (Relief)': ggTerrain, 
+          'Google Hybrid' : ggHybrid
+          }, {})
+      );
 
-<center>
-<div id="mapid" style="width: 700px; height: 500px;"></div>
-  <script>
-  // Define the Leaflet default coordinates and zoom level
-  var map = L.map('mapid').setView([48.89, 2.24], 13);
-  
-  // Set up the map layers
-  var osmLayer = L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://osm.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 18
-  });
-  var ggRoadmap = new L.Google('ROADMAP');
-  var ggSatellite = new L.Google('').addTo(map); // We add this one as default map
-  var ggTerrain = new L.Google('TERRAIN');
-  var ggHybrid = new L.Google('HYBRID');
+      // Add a little circle marker with a pop-up on Total's HQ
+      L.circle([48.8930, 2.2433], {
+        color: 'red',
+        fillColor: '#f03',
+        fillOpacity: 0.5,
+        radius: 60
+      }).addTo(map)
+      .bindPopup("<strong>Total Tour Coupole</strong>").openPopup();
+      // L.marker([48.893004, 2.243376]).addTo(map) // code for a simple marker
 
-  // Add layer control
-  map.addControl(new L.Control.Layers( {
-      'OpenStreetMap': osmLayer,
-      'Google Roadmap' : ggRoadmap, 
-      'Google Satellite': ggSatellite, 
-      'Google Terrain (Relief)': ggTerrain, 
-      'Google Hybrid' : ggHybrid
-      }, {})
-  );
+      // Add the possibility to click wherever on the map to see coordinates
+      var popup = L.popup();
+      function onMapClick(e) {
+        popup
+        .setLatLng(e.latlng)
+        .setContent(e.latlng.toString())
+        .openOn(map);
+        }
+      map.on('click', onMapClick);
 
-  // Add a little circle marker with a pop-up on Total's HQ
-  // L.marker([48.893004, 2.243376]).addTo(map)
-  L.circle([48.893004, 2.243376], {
-    color: 'red',
-    fillColor: '#f03',
-    fillOpacity: 0.5,
-    radius: 50
-  }).addTo(map)
-  .bindPopup("<strong>Total Tour Coupole</strong>").openPopup();
+      // With the code below we could display an alert instead of a popup
+      // function onMapClick(e) {alert("You clicked the map at " + e.latlng);}
+      // map.on('click', onMapClick);
 
-  // Add the possibility to click wherever on the map to see coordinates
-  var popup = L.popup();
-  function onMapClick(e) {
-      popup
-          .setLatLng(e.latlng)
-          .setContent(e.latlng.toString())
-          .openOn(map);
-  }
-  map.on('click', onMapClick);
+      // Add a scale bar
+      L.control.scale().addTo(map);
 
-  // With the code below we could display an alert instead of a popup
-  // function onMapClick(e) {
-  //   alert("You clicked the map at " + e.latlng);
-  // }
-  // map.on('click', onMapClick);
+      // Add a search bar
+      var searchControl = new L.esri.Controls.Geosearch().addTo(map);
+      var results = new L.LayerGroup().addTo(map);
+      searchControl.on('results', function(data){
+        results.clearLayers()
+        map.closePopup();
+        for (var i = data.results.length - 1; i >= 0; i--) {
+          results.addLayer(L.marker(data.results[i].latlng));
+        }
+      });
 
-  // Code to be modified
-  // This will create an URL containing the coordinates as HTML GET parameters
-  // We can then retrieve these parameters in our Flask app
-  // map.on('click', 
-  //   function(e){
-  //       var coord = e.latlng;
-  //       var lat = coord.lat;
-  //       var lng = coord.lng;
-  //       var newMarker = L.marker(e.latlng, {draggable:'true'}).addTo(mymap)
-  //       ;
-  // });
+      // Function to extract lat and lng on click
+      map.on('click', function(e) {
+      var lat = e.latlng.lat;
+      document.getElementById('lat').value = lat;
+      var lng = e.latlng.lng;
+      document.getElementById('lng').value = lng;
+      });
+      </script>
+    </div>
+    
+    <div class="col-6 col-md-4">
+      <form action="/success" method="post" enctype="multipart/form-data">
+        <br><br>      
+        <br><br>
+        <br>
+        <label for="lat"> Latitude: </label>
+        <br>
+        <input type="text" id="lat", name="lat" required>
+        <br>
+        <br>
+        <label for="lng"> Longitude: </label>
+        <br>
+        <input type="text" id="lng", name="lng" required>
+        <br>
+        <br>
+        <label for="size"> Area lateral size (in m, 200 to 5000): </label>
+        <br>
+        <input type="text" id="size", name="size", placeholder="Default: 200">
+        <br>
+        <br>
+        <input type="submit" value="Submit coordinates" onclick="loading();blurBackground()">
+      </form>
+    </div>
+  </div>
 
-  // Add a scale
-  L.control.scale().addTo(map);
+  <br>
+  <br>
 
-  // Add a search bar
-  var searchControl = new L.esri.Controls.Geosearch().addTo(map);
-  var results = new L.LayerGroup().addTo(map);
-  searchControl.on('results', function(data){
-    results.clearLayers()
-    map.closePopup();
-    for (var i = data.results.length - 1; i >= 0; i--) {
-      results.addLayer(L.marker(data.results[i].latlng));
+  <!-- Error messages Jinja2 template -->
+  {% with error = get_flashed_messages() %}
+    {% if error %}
+      <script>
+        var error = {{ error | safe }};
+        for (var i=0; i<error.length; i++) {
+          alert(error[i]);
+        }
+      </script>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Loader -->
+  <script type="text/javascript">
+    function loading(){
+        $("#loading").show();
     }
-  });
+    function blurBackground() {
+    var el = document.getElementById('content');
+    el.style.filter = "blur(5px) grayscale(1)";
+    }
+  </script>
 
-</script>
-</center>
+  <br>
+  <br>
 
-<br>
-<br>
+  <footer>
+    <center>
+      <p style="opacity: 0.3">
+        &copy; 2020 - Total E-LAB - Thomas de Mareuil
+      </p>
+    </center>
+  </footer>
+
+</div>
 
 </body>
 

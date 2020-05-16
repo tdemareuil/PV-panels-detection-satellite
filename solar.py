@@ -2,6 +2,16 @@ import os
 import sys
 import numpy as np
 import skimage
+import urllib
+import json
+import osmnx as ox
+import shapely
+import pyproj
+import imantics
+import math
+import matplotlib
+import matplotlib.pyplot as plt
+plt.switch_backend('Agg')
 
 
 ################################################################
@@ -9,33 +19,34 @@ import skimage
 ################################################################
 
 # Directory of the mrcnn library
-ROOT_DIR = os.path.abspath("../../")
+ROOT_DIR = os.path.abspath("../")
 
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)
 from mrcnn.config import Config
-from mrcnn import model as modellib, utils
+from mrcnn import model as modellib, utils, visualize
 
-# Path to trained weights file
-COCO_WEIGHTS_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
-if not os.path.exists(COCO_WEIGHTS_PATH):
-    utils.download_trained_weights(COCO_WEIGHTS_PATH)
+# Path to trained pre-weights file
+COCO_WEIGHTS_PATH = os.path.join(ROOT_DIR,
+                        "pvpanels", "models", "mask_rcnn_coco.h5")
+# if not os.path.exists(COCO_WEIGHTS_PATH):
+#     utils.download_trained_weights(COCO_WEIGHTS_PATH)
 
 # Path to dataset - change if needed
-SOLAR_DIR = os.path.join(ROOT_DIR, "datasets/solar")
+DATA_DIR = os.path.join(ROOT_DIR, "pvpanels", "data")
 
 # Directory to save logs and model checkpoints, if not provided
 # through the command line argument --logs
-DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
-if not os.path.exists(DEFAULT_LOGS_DIR):
-    os.makedirs(DEFAULT_LOGS_DIR)
+MODELS_DIR = os.path.join(ROOT_DIR, "pvpanels", "models")
+if not os.path.exists(MODELS_DIR):
+    os.makedirs(MODELS_DIR)
 
-# Path to results directory (TBD)
-RESULTS_DIR = os.path.join(ROOT_DIR, "results")
+# Path to results directory
+RESULTS_DIR = os.path.join(ROOT_DIR, "pvpanels", "inference")
 
 
 ################################################################
-#  Configuration
+#  Override Mask R-CNN Configuration class
 ################################################################
 
 class SolarConfig(Config):
@@ -51,7 +62,7 @@ class SolarConfig(Config):
     # We use a GPU with 16GB memory, which can fit several images.
     # Adjust down if you use a smaller GPU.
     # Batch size is (GPUs * images/GPU).
-    IMAGES_PER_GPU = 6
+    IMAGES_PER_GPU = 4
 
     # Backbone network architecture
     # Supported values are: resnet50, resnet101 (default)
@@ -77,15 +88,15 @@ class SolarConfig(Config):
     # to avoid fractions when downscaling and upscaling.
     IMAGE_RESIZE_MODE = "square"
     IMAGE_MIN_DIM = 512
-    IMAGE_MAX_DIM = 512
-    IMAGE_SHAPE = [512, 512, 3]
+    IMAGE_MAX_DIM = 2048
+    # IMAGE_SHAPE = [512, 512, 3]
     # IMAGE_MIN_SCALE = 2.0
 
     # Use smaller anchors because our image and objects are small
     RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)  # square anchor side in pixels
 
     # How many anchors per image to use for RPN training
-    RPN_TRAIN_ANCHORS_PER_IMAGE = 128
+    RPN_TRAIN_ANCHORS_PER_IMAGE = 256
 
     # Non-max suppression threshold to filter RPN proposals.
     # You can increase this during training to generate more proposals.
@@ -109,15 +120,15 @@ class SolarConfig(Config):
     USE_MINI_MASK = True
     MINI_MASK_SHAPE = (256, 256)  # (height, width) of the mini-mask
 
-    # Maximum number of ground truth instances to use in one image
-    # MAX_GT_INSTANCES = 200
+    # Maximum number of ground truth instances in one image
+    MAX_GT_INSTANCES = 120
 
     # Max number of final detections per image
     # DETECTION_MAX_INSTANCES = 400
 
 
 ################################################################
-#  Dataset
+#  Override Mask R-CNN Dataset class
 ################################################################
 
 class SolarDataset(utils.Dataset):
@@ -126,10 +137,10 @@ class SolarDataset(utils.Dataset):
                    train_test_split=None, is_train=False, is_val=False):
         """
         Load a subset of the Solar dataset.
-            dataset_dir: Root directory of the dataset.
-            subset: Subset to load: train or val, if separated in different folders
+            dataset_dir: root directory of the dataset
+            subset: if separated in different folders, subset to load ('train' or 'val')
             resize_dataset: nb of images to keep from large dataset
-            train_test_split: if desired, proportion of data to keep for training vs. val
+            train_test_split: proportion of data to keep for training vs. val
             is_train: boolean, if loading training data
             is_val: boolean, if loading validation data
         """
@@ -174,6 +185,8 @@ class SolarDataset(utils.Dataset):
     def load_mask(self, image_id, masks_dir=None):
         """
         Load instance masks for an image.
+            image_id: the image_id as defined in load_solar
+            masks_dir: necessary if masks aren't a subset of the root image directory
         Returns:
             masks: A bool array of shape [height, width, instance count] with
                    one mask per instance.
@@ -187,7 +200,7 @@ class SolarDataset(utils.Dataset):
         else:
         	mask_dir = masks_dir
 
-        # If not a solar dataset image, delegate to parent class.
+        # If not a solar dataset image, delegate to parent class
         if info["source"] != "solar":
             return super(self.__class__, self).load_mask(image_id)
 
@@ -223,7 +236,7 @@ class SolarDataset(utils.Dataset):
 
 
 ################################################################
-#  Detection
+#  Override Mask R-CNN Inference & Visualization functions
 ################################################################
 
 class InferenceConfig(SolarConfig):
@@ -317,6 +330,101 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None,
                                     window, scale, active_class_ids)
 
     return image, image_meta, class_ids, bbox, mask
+
+def display_instances(image, boxes, masks, class_ids, class_names,
+                      scores=None, title="",
+                      figsize=(16, 16), ax=None,
+                      show_mask=True, show_bbox=True,
+                      colors=None, captions=None, plot=True, save=None):
+    """
+    boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
+    masks: [height, width, num_instances]
+    class_ids: [num_instances]
+    class_names: list of class names of the dataset
+    scores: (optional) confidence scores for each box
+    title: (optional) Figure title
+    show_mask, show_bbox: To show masks and bounding boxes or not
+    figsize: (optional) the size of the image
+    colors: (optional) An array or colors to use with each object
+    captions: (optional) A list of strings to use as captions for each object
+    """
+    # Number of instances
+    N = boxes.shape[0]
+    if not N:
+        print("\n*** No instances to display *** \n")
+    else:
+        assert boxes.shape[0] == masks.shape[-1] == class_ids.shape[0]
+
+    # If no axis is passed, create one and automatically call show()
+    auto_show = False
+    if not ax:
+        _, ax = plt.subplots(1, figsize=figsize)
+        auto_show = True
+
+    # Generate random colors
+    colors = colors or visualize.random_colors(N)
+
+    # Show area outside image boundaries.
+    height, width = image.shape[:2]
+    ax.set_ylim(height + 10, -10)
+    ax.set_xlim(-10, width + 10)
+    ax.axis('off')
+    ax.set_title(title)
+
+    masked_image = image.astype(np.uint32).copy()
+    for i in range(N):
+        color = colors[i]
+
+        # Bounding box
+        if not np.any(boxes[i]):
+            # Skip this instance. Has no bbox. Likely lost in image cropping.
+            continue
+        y1, x1, y2, x2 = boxes[i]
+        if show_bbox:
+            p = matplotlib.patches.Rectangle((x1, y1), x2 - x1, y2 - y1,
+                                linewidth=2, alpha=0.7, linestyle="dashed",
+                                edgecolor=color, facecolor='none')
+            ax.add_patch(p)
+
+        # Label
+        if not captions:
+            class_id = class_ids[i]
+            score = scores[i] if scores is not None else None
+            label = class_names[class_id]
+            caption = "{} {:.3f}".format(label, score) if score else label
+        else:
+            caption = captions[i]
+        ax.text(x1, y1 + 8, caption,
+                color='w', size=14, backgroundcolor="none")
+
+        # Mask
+        mask = masks[:, :, i]
+        if show_mask:
+            masked_image = visualize.apply_mask(masked_image, mask, color)
+
+        # Mask Polygon
+        # Pad to ensure proper polygons for masks that touch image edges.
+        padded_mask = np.zeros(
+            (mask.shape[0] + 2, mask.shape[1] + 2), dtype=np.uint8)
+        padded_mask[1:-1, 1:-1] = mask
+        contours = skimage.measure.find_contours(padded_mask, 0.5)
+        for verts in contours:
+            # Subtract the padding and flip (y, x) to (x, y)
+            verts = np.fliplr(verts) - 1
+            p = matplotlib.patches.Polygon(verts, facecolor="none", edgecolor=color)
+            ax.add_patch(p)
+    ax.imshow(masked_image.astype(np.uint8))
+    if plot:
+        if auto_show:
+            plt.show()
+    if not plot:
+        plt.savefig(save, bbox_inches='tight', pad_inches=0.0)
+        plt.close()
+
+
+################################################################
+#  Add solar utils functions
+################################################################
 
 def detect_multi(model, dataset_dir, subset=None, results_dir=RESULTS_DIR):
     """
@@ -447,9 +555,124 @@ def detect_and_color_splash(model, image_path=None, video_path=None):
     
     print("New file saved as ", file_name)
 
+def get_area_coordinates(center_lat, center_lng, lateral_size):
+    """
+    Converts cartesian meters to espg:4326 decimal degrees (approximation
+    works for the latitudes close to France) in order to compute coordinates 
+    of all small squares (200m lateral size) that can fit within a larger square.
+    The obtained coordinates can then be used for Google Solar API queries.
+    
+        center_lat, center_lng: coordinates of the center of the larger square
+        lateral_size: lateral size of the larger square (in cartesian meters)
+        
+    Returns: a list of (lat, lng) tuples corresponding to coordinates of each
+             small square center (in espg:4326).
+    """
+    if (lateral_size // 200) % 2 == 0: lateral_size -= 200 # adjust area size
+    n_images = lateral_size // 200
+    R = 6378137 # Earth's radius
+    coordinates = []
+    for x in range(-(n_images - 1) * 100, (n_images) * 100, 200):
+        for y in range(-(n_images - 1) * 100, (n_images) * 100, 200):
+            # Coordinate offsets in radians
+            dLat = y / R
+            dLng = x / (R * math.cos(math.pi * center_lat / 180))
+            # New coordinates in decimal degrees
+            new_lat = center_lat + dLat * 180 / math.pi
+            new_lng = center_lng + dLng * 180 / math.pi
+            coordinates.append((new_lat, new_lng))
+    return coordinates
+
+def mrcnn_masks_to_polygons(masks, pixel_transform,
+                            image_crs, dest_crs='epsg:4326'):
+    """
+    Use functions from imantics, shapely and pyproj libraries to
+    create Polygons from MRCNN outputs, transform them from pixel
+    space to the source image crs, and finally reproject them to a
+    chosen dest crs (which enables plotting, with folium for example).
+
+        masks: MRCNN ['masks'] output
+        pixel_transform: affine transformation of the original image
+                         (can be obtained with rasterio image.transform)
+        image_crs: crs of the original image
+        dest_crs: destination crs, by default OSM's crs (4326).
+
+    Returns: a list of shapely polygons in destination crs.
+    """
+    mask = masks.astype(int)
+    mask = mask.sum(axis=2)
+    polygons_px = imantics.Polygons.from_mask(mask)
+    polygons_dest_crs = []
+    for i in range(masks.shape[2]):
+        if len(polygons_px.points[i])<3:
+            continue
+        else:
+            polygon = shapely.geometry.Polygon([pixel_transform * point \
+                                            for point in polygons_px.points[i]])
+            reproject = pyproj.Transformer.from_proj(pyproj.Proj(init=image_crs),
+                                                     pyproj.Proj(init='epsg:4326'))
+            polygon = shapely.ops.transform(reproject.transform, polygon)
+            polygons_dest_crs.append(polygon)
+    return polygons_dest_crs
+
+def call_google_earthenginesolar_API(
+    LAT, LNG, ID, RADIUS, API_KEY, output_path="./",
+    compute_RGB_IMG=True,
+    compute_Flux_IMG=True,
+    compute_Elevation_IMG=True):
+    """Calls GEE static API to download images in the specified folder
+
+       Warnings: Not all areas worlwide are covered. Max radius is 100m.
+       API key isn't to be shared without caution.
+
+       Images crs is the local flavour of WSG84 (ex: espg 32631).
+       Resolution is 0.1m (i.e. each pixel represents 10cm, 
+       which corresponds to 2000 px width for an image with 100m radius).
+    """
+    urlEarthEngineSolar = (('https://earthenginesolar.googleapis.com/v1/solarInfo:'+
+                            'get?location.latitude={lat}&location.longitude={lng}&'+
+                            'radiusMeters={radiusM}&view=FULL&key={key}')
+                            .format(lat=LAT,lng=LNG, radiusM=RADIUS, key=API_KEY))
+    try: 
+        urllib.request.urlopen(urlEarthEngineSolar)
+    except urllib.error.URLError as error:
+        print(e.code,e.reason)
+        raise ValueError
+    else:
+        res = urllib.request.urlopen(urlEarthEngineSolar)
+        res_body = res.read()
+        sunroofResponseRaster = json.loads(res_body.decode("utf-8"))
+        rgbImg = sunroofResponseRaster['rgbUrl']
+        fluxImg = sunroofResponseRaster['annualFluxUrl']
+        dsmImg = sunroofResponseRaster['dsmUrl']
+        if not output_path[-1] is "/":
+            output_path += "/"
+        if compute_RGB_IMG:
+            urllib.request.urlretrieve(rgbImg, '{}_RGB.tif'.format(output_path+str(ID)))
+        if compute_Flux_IMG:
+            urllib.request.urlretrieve(fluxImg, '{}_FLUX.tif'.format(output_path+str(ID)))
+        if compute_Elevation_IMG:
+            urllib.request.urlretrieve(dsmImg, '{}_DSM.tif'.format(output_path+str(ID)))
+
+def check_around(lat, lng, radius, tag):
+    """
+    Use a funciton from osmnx library to check for the presence of 
+    certain OSM tags around a lat/lng point.
+    Much more options are possible with osmnx - see documentation.
+        lat, lng: point coordinates (espg:4326)
+        radius: radius of square area to search (in m)
+        tag: a valid OSM tag (ex: 'buildings')
+    Returns: boolean.
+    """
+    return len(ox.footprints.footprints_from_point(point=(lat, lng), 
+                                       distance=radius, 
+                                       footprint_type=tag, 
+                                       retain_invalid=False, 
+                                       custom_settings=None)) > 0
+
 
 ################################################################
-#  Command Line
+#  Set Command Line interface
 ################################################################
 
 if __name__ == '__main__':
@@ -468,7 +691,7 @@ if __name__ == '__main__':
                         metavar="/path/to/weights.h5",
                         help="Path to weights .h5 file or 'coco'")
     parser.add_argument('--logs', required=False,
-                        default=DEFAULT_LOGS_DIR,
+                        default=MODELS_DIR,
                         metavar="/path/to/logs/",
                         help='Logs and checkpoints directory (default=logs/)')
     parser.add_argument('--image', required=False,
