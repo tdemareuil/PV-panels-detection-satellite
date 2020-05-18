@@ -223,7 +223,8 @@ def predict_batch():
             yhat = model.detect([image], verbose=0)[0]
         n_solar = yhat['masks'].shape[2]
         pv_surface = solar.compute_mask_to_surface(yhat['masks']).sum()
-        pv_confidence = yhat['scores'].mean()*100
+        if n_solar !=0:
+            pv_confidence = yhat['scores'].sum()*100
 
         # Convert mask to polygons and reproject to espg:4326
         polygons_image = solar.mrcnn_masks_to_polygons(yhat['masks'],
@@ -233,7 +234,8 @@ def predict_batch():
         # Store detection information
         total_solar += n_solar
         total_surface += pv_surface
-        total_confidence += pv_confidence
+        if n_solar !=0:
+            total_confidence += pv_confidence
         print("Image {}/{} analysed...".format(index+1, n_images))
     print("\n--> Detection successful - now saving results for display")
  
@@ -252,7 +254,7 @@ def predict_batch():
     data["Number of detected solar arrays"] = str(total_solar)
     data["Total surface of detected solar arrays"] = "≈ {:.1f}m^2".format(total_surface)
     if total_solar != 0:
-        data["Average confidence level"] = "≈ {:.1%}".format(total_confidence/(int(n_images)*100))
+        data["Average confidence level"] = "≈ {:.1%}".format(total_confidence/(int(total_solar)*100))
     else: data["Average confidence level"] = "n.a."
     # Save as json
     # with open(os.path.join(app.config['UPLOAD_FOLDER'],
@@ -273,7 +275,7 @@ def predict_batch():
 @app.route('/inference/<path:filename>')
 def display_file(filename):
     return flask.send_from_directory(app.config['UPLOAD_FOLDER'],
-                               filename, as_attachment=True)
+                                     filename, as_attachment=True)
 
 
 # Finally, the script that builds the model and launches the app

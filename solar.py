@@ -9,6 +9,7 @@ import shapely
 import pyproj
 import imantics
 import math
+import random
 import matplotlib
 import matplotlib.pyplot as plt
 plt.switch_backend('Agg')
@@ -38,11 +39,6 @@ DATA_DIR = os.path.join(ROOT_DIR, "pvpanels", "data")
 # Directory to save logs and model checkpoints, if not provided
 # through the command line argument --logs
 MODELS_DIR = os.path.join(ROOT_DIR, "pvpanels", "models")
-if not os.path.exists(MODELS_DIR):
-    os.makedirs(MODELS_DIR)
-
-# Path to results directory
-RESULTS_DIR = os.path.join(ROOT_DIR, "pvpanels", "inference")
 
 
 ################################################################
@@ -56,13 +52,11 @@ class SolarConfig(Config):
     # Give the configuration a recognizable name
     NAME = "solar"
 
-    # Uncomment to train on 8 GPUs (default is 1)
-    # GPU_COUNT = 8
-
     # We use a GPU with 16GB memory, which can fit several images.
     # Adjust down if you use a smaller GPU.
     # Batch size is (GPUs * images/GPU).
-    IMAGES_PER_GPU = 4
+    # GPU_COUNT = 1
+    IMAGES_PER_GPU = 2
 
     # Backbone network architecture
     # Supported values are: resnet50, resnet101 (default)
@@ -74,7 +68,7 @@ class SolarConfig(Config):
     # Number of training steps per epoch
     STEPS_PER_EPOCH = 100
 
-    # use small validation steps since the epoch is small
+    # Use small validation steps since the epoch is small
     VALIDATION_STEPS = 5
 
     # Skip detections with < 90% confidence
@@ -88,9 +82,7 @@ class SolarConfig(Config):
     # to avoid fractions when downscaling and upscaling.
     IMAGE_RESIZE_MODE = "square"
     IMAGE_MIN_DIM = 512
-    IMAGE_MAX_DIM = 2048
-    # IMAGE_SHAPE = [512, 512, 3]
-    # IMAGE_MIN_SCALE = 2.0
+    IMAGE_MAX_DIM = 512
 
     # Use smaller anchors because our image and objects are small
     RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)  # square anchor side in pixels
@@ -118,13 +110,22 @@ class SolarConfig(Config):
     # If enabled, resizes instance masks to a smaller size to reduce
     # memory load. Recommended when using high-resolution images.
     USE_MINI_MASK = True
-    MINI_MASK_SHAPE = (256, 256)  # (height, width) of the mini-mask
+    MINI_MASK_SHAPE = (128, 128)  # (height, width) of the mini-mask
 
     # Maximum number of ground truth instances in one image
     MAX_GT_INSTANCES = 120
 
     # Max number of final detections per image
-    # DETECTION_MAX_INSTANCES = 400
+    # DETECTION_MAX_INSTANCES = 100
+
+    # Image mean pixel value per channel (RGB)
+    # Values computed for the solar dataset in inspect_solar_data.ipynb
+    MEAN_PIXEL = np.array([113.21, 119.43, 106.67, 117.19])
+
+    # Number of color channels per image.
+    # Changing this requires other changes in the code. See the WIKI for more
+    # details: https://github.com/matterport/Mask_RCNN/wiki
+    IMAGE_CHANNEL_COUNT = 4
 
 
 ################################################################
@@ -136,33 +137,33 @@ class SolarDataset(utils.Dataset):
     def load_solar(self, dataset_dir, subset=None, resize_dataset=None, 
                    train_test_split=None, is_train=False, is_val=False):
         """
-        Load a subset of the Solar dataset.
+        Load the Solar dataset.
             dataset_dir: root directory of the dataset
             subset: if separated in different folders, subset to load ('train' or 'val')
-            resize_dataset: nb of images to keep from large dataset
+            resize_dataset: nb of images to keep from a large dataset
             train_test_split: proportion of data to keep for training vs. val
-            is_train: boolean, if loading training data
-            is_val: boolean, if loading validation data
+            is_train: boolean, if loading training dataset from train_test_split
+            is_val: boolean, if loading validation dataset from train_test_split
         """
-        # Add classes. We have only one class to add.
+        # Add classes - here, we have only one class to add.
         # We pass the dataset name, nb of classes and class name.
         self.add_class("solar", 1, "solar array")
 
-        # Select between train and validation dataset if required
+        # Select between train and validation dataset if relevant
         if subset in ["train", "val"]:
             dataset_dir = os.path.join(dataset_dir, subset)
 
-        # Resize dataset if required
+        # Resize dataset if requested
         image_ids = os.listdir(dataset_dir)
         size_dataset = len(image_ids)
         if resize_dataset != None:
             size_dataset = resize_dataset
             image_ids = random.sample(image_ids, size_dataset)
-        # print("Nb of images in dataset = ", size_dataset)
 
-        # Train-test split if required
+        # Train-test split if requested
         if train_test_split != None:
-            nb_train = int(train_test_split * size_dataset)
+            nb_train = int(train_test_split * size_dataset) # set the nb where to cut
+            random.Random(5).shuffle(image_ids) # randomly shuffle the dataset (with seed)
             if is_train:
                 image_ids = image_ids[:nb_train]
                 print('Split ratio = {}%'.format(int(train_test_split * 100)))
@@ -175,7 +176,7 @@ class SolarDataset(utils.Dataset):
         # Get clean image ids for loading
         image_ids = [image_id[:-4] for image_id in image_ids]
 
-        # Add images
+        # Set up the list of images corresponding to the dataset we load
         for image_id in image_ids:
             self.add_image(
                 "solar",
@@ -216,6 +217,36 @@ class SolarDataset(utils.Dataset):
         # one class ID, we return an array of ones
         return mask, np.ones([mask.shape[-1]], dtype=np.int32)
 
+    # Choose which of the two load_images functions you comment out
+    def load_image(self, image_id):
+        """Load the specified image and return a [H,W,4] numpy array, where the
+           4th channel is relative luminance.
+        """
+        # Load image
+        image = skimage.io.imread(self.image_info[image_id]['path'])
+        # If grayscale, convert to RGB for consistency
+        if image.ndim != 3:
+            image = skimage.color.gray2rgb(image)
+        # If has an alpha channel, remove it for consistency
+        if image.shape[-1] == 4:
+            image = image[..., :3]
+        # Compute relative luminance channel
+        image = self.add_rel_lum(image)
+        return image
+
+    # def load_image(self, image_id):
+    #     """Load the specified image and return a [H,W,3] numpy array (RGB).
+    #     """
+    #     # Load image
+    #     image = skimage.io.imread(self.image_info[image_id]['path'])
+    #     # If grayscale, convert to RGB for consistency
+    #     if image.ndim != 3:
+    #         image = skimage.color.gray2rgb(image)
+    #     # If has an alpha channel, remove it for consistency
+    #     if image.shape[-1] == 4:
+    #         image = image[..., :3]
+    #     return image
+
     def image_reference(self, image_id):
         """Return the path of the image."""
         info = self.image_info[image_id]
@@ -224,13 +255,13 @@ class SolarDataset(utils.Dataset):
         else:
             super(self.__class__, self).image_reference(image_id)
 
-    def add_rel_lum(image_id):
+    def add_rel_lum(self, image):
         """Add relative luminance (Y channel) to the image
            with formula: Y = 0.2126R + 0.7152G + 0.0722B
-           Args: image id or image as np array? (TBD)
+           Args: image formatted as RGB numpy array
         """
-        image = skimage.io.imread(image_id)
         rel_lum_layer = 0.2126*image[:,:,0] + 0.7152*image[:,:,1] + 0.0722*image[:,:,2]
+        rel_lum_layer = rel_lum_layer.astype(np.uint8)
         new_image = np.dstack((image, rel_lum_layer))
         return new_image
 
@@ -244,92 +275,6 @@ class InferenceConfig(SolarConfig):
     # image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
     GPU_COUNT = 1
     IMAGES_PER_GPU = 1
-
-def load_image_gt(dataset, config, image_id, augment=False, augmentation=None,
-                  use_mini_mask=False, masks_dir=None):
-    """Overwrites the base function from model.py, in order to add an argument
-       to specify the masks folder.
-    """
-    # Load image and mask
-    image = dataset.load_image(image_id)
-    if masks_dir == None:
-    	mask, class_ids = dataset.load_mask(image_id)
-    else:
-    	mask, class_ids = dataset.load_mask(image_id, masks_dir=masks_dir)
-    original_shape = image.shape
-    image, window, scale, padding, crop = utils.resize_image(
-        image,
-        min_dim=config.IMAGE_MIN_DIM,
-        min_scale=config.IMAGE_MIN_SCALE,
-        max_dim=config.IMAGE_MAX_DIM,
-        mode=config.IMAGE_RESIZE_MODE)
-    mask = utils.resize_mask(mask, scale, padding, crop)
-
-    # Random horizontal flips.
-    # TODO: will be removed in a future update in favor of augmentation
-    if augment:
-        logging.warning("'augment' is deprecated. Use 'augmentation' instead.")
-        if random.randint(0, 1):
-            image = np.fliplr(image)
-            mask = np.fliplr(mask)
-
-    # Augmentation
-    # This requires the imgaug lib (https://github.com/aleju/imgaug)
-    if augmentation:
-        import imgaug
-
-        # Augmenters that are safe to apply to masks
-        # Some, such as Affine, have settings that make them unsafe, so always
-        # test your augmentation on masks
-        MASK_AUGMENTERS = ["Sequential", "SomeOf", "OneOf", "Sometimes",
-                           "Fliplr", "Flipud", "CropAndPad",
-                           "Affine", "PiecewiseAffine"]
-
-        def hook(images, augmenter, parents, default):
-            """Determines which augmenters to apply to masks."""
-            return augmenter.__class__.__name__ in MASK_AUGMENTERS
-
-        # Store shapes before augmentation to compare
-        image_shape = image.shape
-        mask_shape = mask.shape
-        # Make augmenters deterministic to apply similarly to images and masks
-        det = augmentation.to_deterministic()
-        image = det.augment_image(image)
-        # Change mask to np.uint8 because imgaug doesn't support np.bool
-        mask = det.augment_image(mask.astype(np.uint8),
-                                 hooks=imgaug.HooksImages(activator=hook))
-        # Verify that shapes didn't change
-        assert image.shape == image_shape, "Augmentation shouldn't change image size"
-        assert mask.shape == mask_shape, "Augmentation shouldn't change mask size"
-        # Change mask back to bool
-        mask = mask.astype(np.bool)
-
-    # Note that some boxes might be all zeros if the corresponding mask got cropped out.
-    # and here is to filter them out
-    _idx = np.sum(mask, axis=(0, 1)) > 0
-    mask = mask[:, :, _idx]
-    class_ids = class_ids[_idx]
-    # Bounding boxes. Note that some boxes might be all zeros
-    # if the corresponding mask got cropped out.
-    # bbox: [num_instances, (y1, x1, y2, x2)]
-    bbox = utils.extract_bboxes(mask)
-
-    # Active classes
-    # Different datasets have different classes, so track the
-    # classes supported in the dataset of this image.
-    active_class_ids = np.zeros([dataset.num_classes], dtype=np.int32)
-    source_class_ids = dataset.source_class_ids[dataset.image_info[image_id]["source"]]
-    active_class_ids[source_class_ids] = 1
-
-    # Resize masks to smaller size to reduce memory usage
-    if use_mini_mask:
-        mask = utils.minimize_mask(bbox, mask, config.MINI_MASK_SHAPE)
-
-    # Image meta data
-    image_meta = modellib.compose_image_meta(image_id, original_shape, image.shape,
-                                    window, scale, active_class_ids)
-
-    return image, image_meta, class_ids, bbox, mask
 
 def display_instances(image, boxes, masks, class_ids, class_names,
                       scores=None, title="",
@@ -426,7 +371,8 @@ def display_instances(image, boxes, masks, class_ids, class_names,
 #  Add solar utils functions
 ################################################################
 
-def detect_multi(model, dataset_dir, subset=None, results_dir=RESULTS_DIR):
+def detect_multi(model, dataset_dir, subset=None, 
+                    results_dir=os.path.join(ROOT_DIR,"inference")):
     """
     Run detection on images in a given directory.
     Returns: a file (format TBD) with all polygon coordinates,
