@@ -66,23 +66,25 @@ class SolarConfig(Config):
     NUM_CLASSES = 1 + 1  # Background + solar array
 
     # Number of training steps per epoch
-    STEPS_PER_EPOCH = 100
+    STEPS_PER_EPOCH = 1748*2/2 # nb train * (mean nb augments + 1) / nb per GPU
+    # Which means that if we have 1748 images and apply on average 1 augmentation
+    # per image (sometimes 1, sometimes 0, sometimes 2), we run through our
+    # dataset twice per epoch (i.e. we multiply training steps by 2)
 
     # Use small validation steps since the epoch is small
-    VALIDATION_STEPS = 5
+    VALIDATION_STEPS = 219*2/2 # nb val * (mean nb augments + 1) / nb per GPU
 
     # Skip detections with < 90% confidence
     DETECTION_MIN_CONFIDENCE = 0.9
-
     # You can also choose to not exclude based on confidence. Since we have 
     # 2 classes, 0.5 is the minimum anyway as it picks between solar and BG.
     # DETECTION_MIN_CONFIDENCE = 0
 
     # Input image resizing. Image size must be dividable by 2 at least 6 times 
     # to avoid fractions when downscaling and upscaling.
-    IMAGE_RESIZE_MODE = "square"
+    IMAGE_RESIZE_MODE = "crop" # apply random crops on images > 512px
     IMAGE_MIN_DIM = 512
-    IMAGE_MAX_DIM = 512
+    # IMAGE_MAX_DIM = 512
 
     # Use smaller anchors because our image and objects are small
     RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)  # square anchor side in pixels
@@ -120,12 +122,12 @@ class SolarConfig(Config):
 
     # Image mean pixel value per channel (RGB)
     # Values computed for the solar dataset in inspect_solar_data.ipynb
-    MEAN_PIXEL = np.array([113.21, 119.43, 106.67, 117.19])
+    MEAN_PIXEL = np.array([112.047, 117.697, 107.700])
 
     # Number of color channels per image.
     # Changing this requires other changes in the code. See the WIKI for more
     # details: https://github.com/matterport/Mask_RCNN/wiki
-    IMAGE_CHANNEL_COUNT = 4
+    IMAGE_CHANNEL_COUNT = 3
 
 
 ################################################################
@@ -135,15 +137,17 @@ class SolarConfig(Config):
 class SolarDataset(utils.Dataset):
 
     def load_solar(self, dataset_dir, subset=None, resize_dataset=None, 
-                   train_test_split=None, is_train=False, is_val=False):
+                   train_test_split=None, is_train=False, is_val=False, is_test=False):
         """
         Load the Solar dataset.
             dataset_dir: root directory of the dataset
             subset: if separated in different folders, subset to load ('train' or 'val')
             resize_dataset: nb of images to keep from a large dataset
-            train_test_split: proportion of data to keep for training vs. val
+            train_test_split: proportion of data to keep for training (the remaining data 
+                              is split between validation and test set)
             is_train: boolean, if loading training dataset from train_test_split
             is_val: boolean, if loading validation dataset from train_test_split
+            is_test: boolean, if loading test dataset from train_test_split
         """
         # Add classes - here, we have only one class to add.
         # We pass the dataset name, nb of classes and class name.
@@ -163,25 +167,27 @@ class SolarDataset(utils.Dataset):
         # Train-test split if requested
         if train_test_split != None:
             nb_train = int(train_test_split * size_dataset) # set the nb where to cut
+            nb_val = int((train_test_split + (1-train_test_split)/2) * size_dataset)
             random.Random(5).shuffle(image_ids) # randomly shuffle the dataset (with seed)
             if is_train:
                 image_ids = image_ids[:nb_train]
                 print('Split ratio = {}%'.format(int(train_test_split * 100)))
                 print('Nb of training images = {}'.format(len(image_ids)))
             if is_val:
-                image_ids = image_ids[nb_train:]
-                print('Split ratio = {}%'.format(int(train_test_split * 100)))
+                image_ids = image_ids[nb_train:nb_val]
+                print('Split ratio = {}%'.format(int(((1 - train_test_split)/2) * 100)))
                 print('Nb of validation images = {}'.format(len(image_ids)))
-
-        # Get clean image ids for loading
-        image_ids = [image_id[:-4] for image_id in image_ids]
+            if is_test:
+                image_ids = image_ids[nb_val:]
+                print('Split ratio = {}%'.format(int(((1 - train_test_split)/2) * 100)))
+                print('Nb of test images = {}'.format(len(image_ids)))
 
         # Set up the list of images corresponding to the dataset we load
         for image_id in image_ids:
             self.add_image(
                 "solar",
-                image_id=image_id,
-                path=os.path.join(dataset_dir, image_id + ".png"))
+                image_id=image_id[:-4],
+                path=os.path.join(dataset_dir, image_id))
 
     def load_mask(self, image_id, masks_dir=None):
         """
@@ -217,10 +223,8 @@ class SolarDataset(utils.Dataset):
         # one class ID, we return an array of ones
         return mask, np.ones([mask.shape[-1]], dtype=np.int32)
 
-    # Choose which of the two load_images functions you comment out
     def load_image(self, image_id):
-        """Load the specified image and return a [H,W,4] numpy array, where the
-           4th channel is relative luminance.
+        """Load the specified image and return a [H,W,3] numpy array (RGB).
         """
         # Load image
         image = skimage.io.imread(self.image_info[image_id]['path'])
@@ -230,22 +234,7 @@ class SolarDataset(utils.Dataset):
         # If has an alpha channel, remove it for consistency
         if image.shape[-1] == 4:
             image = image[..., :3]
-        # Compute relative luminance channel
-        image = self.add_rel_lum(image)
         return image
-
-    # def load_image(self, image_id):
-    #     """Load the specified image and return a [H,W,3] numpy array (RGB).
-    #     """
-    #     # Load image
-    #     image = skimage.io.imread(self.image_info[image_id]['path'])
-    #     # If grayscale, convert to RGB for consistency
-    #     if image.ndim != 3:
-    #         image = skimage.color.gray2rgb(image)
-    #     # If has an alpha channel, remove it for consistency
-    #     if image.shape[-1] == 4:
-    #         image = image[..., :3]
-    #     return image
 
     def image_reference(self, image_id):
         """Return the path of the image."""
@@ -254,16 +243,6 @@ class SolarDataset(utils.Dataset):
             return info["path"]
         else:
             super(self.__class__, self).image_reference(image_id)
-
-    def add_rel_lum(self, image):
-        """Add relative luminance (Y channel) to the image
-           with formula: Y = 0.2126R + 0.7152G + 0.0722B
-           Args: image formatted as RGB numpy array
-        """
-        rel_lum_layer = 0.2126*image[:,:,0] + 0.7152*image[:,:,1] + 0.0722*image[:,:,2]
-        rel_lum_layer = rel_lum_layer.astype(np.uint8)
-        new_image = np.dstack((image, rel_lum_layer))
-        return new_image
 
 
 ################################################################
@@ -282,16 +261,9 @@ def display_instances(image, boxes, masks, class_ids, class_names,
                       show_mask=True, show_bbox=True,
                       colors=None, captions=None, plot=True, save=None):
     """
-    boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
-    masks: [height, width, num_instances]
-    class_ids: [num_instances]
-    class_names: list of class names of the dataset
-    scores: (optional) confidence scores for each box
-    title: (optional) Figure title
-    show_mask, show_bbox: To show masks and bounding boxes or not
-    figsize: (optional) the size of the image
-    colors: (optional) An array or colors to use with each object
-    captions: (optional) A list of strings to use as captions for each object
+    Overwrite the fuction from visualize.py in order to add plot and save
+    arguments, which allow to save the results of the model instead of 
+    plotting them (used in the flask app).
     """
     # Number of instances
     N = boxes.shape[0]
@@ -514,7 +486,6 @@ def get_area_coordinates(center_lat, center_lng, lateral_size):
     Returns: a list of (lat, lng) tuples corresponding to coordinates of each
              small square center (in espg:4326).
     """
-    if (lateral_size // 200) % 2 == 0: lateral_size -= 200 # adjust area size
     n_images = lateral_size // 200
     R = 6378137 # Earth's radius
     coordinates = []
@@ -532,9 +503,10 @@ def get_area_coordinates(center_lat, center_lng, lateral_size):
 def mrcnn_masks_to_polygons(masks, pixel_transform,
                             image_crs, dest_crs='epsg:4326'):
     """
-    Use functions from imantics, shapely and pyproj libraries to
-    create Polygons from MRCNN outputs, transform them from pixel
-    space to the source image crs, and finally reproject them to a
+    Function for the flask app.
+    Use imantics, shapely and pyproj libraries to i) create
+    Polygons from MRCNN outputs, ii) transform them from pixel
+    space to the source image crs, and iii) finally reproject them to a
     chosen dest crs (which enables plotting, with folium for example).
 
         masks: MRCNN ['masks'] output
