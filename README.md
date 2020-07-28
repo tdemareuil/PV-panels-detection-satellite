@@ -49,7 +49,7 @@ Mask R-CNN is considered as state-of-the-art (as of 2020) to perform **instance 
 
 ![Mask R-CNN architecture 1](https://miro.medium.com/max/3240/1*M_ZhHp8OXzWxEsfWu2e5EA.png)
 
-<center><img align="center" height="300" src="https://www.researchgate.net/profile/Lukasz_Bienias/publication/337795870/figure/fig2/AS:834563236429826@1575986789511/The-structure-of-the-Mask-R-CNN-architecture.png"></center>
+<center><img align="center" height="400" src="https://www.researchgate.net/profile/Lukasz_Bienias/publication/337795870/figure/fig2/AS:834563236429826@1575986789511/The-structure-of-the-Mask-R-CNN-architecture.png"></center>
 <br>
 
 More details on Mask R-CNN can be found in this [Medium article](https://medium.com/@jonathan_hui/image-segmentation-with-mask-r-cnn-ebe6d793272) and this [presentation](https://www.slideshare.net/windmdk/mask-rcnn) by the authors of the original paper at ICCV 2017.
