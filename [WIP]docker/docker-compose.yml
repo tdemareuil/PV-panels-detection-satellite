@@ -1,0 +1,9 @@
+version: "3.7" # version of compose format
+
+services:
+  pvpanels:
+    build: ../../ # path to Dockerfile, relative to docker-compose.yml location
+    ports:
+      - 5000:5000 # host of the container
+    volumes:
+      - ./:/app # mount point
