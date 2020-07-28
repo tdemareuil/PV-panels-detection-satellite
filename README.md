@@ -70,11 +70,11 @@ After training, our model reaches a **Mean Average Precision score** (mAP) at Io
 
 In a few words, mean average precision is a commonly used metric for instance segmentation tasks. It is based on the area under the Precision-Recall curve. For he precision and recall computations, True Positives correspond to predicted masks whose IoU score (Intersection over Union, compared to the ground truth mask) stands above a certain threshold (here, 0.5). We go through detailed model testing steps in the `inspect_solar_model.ipynb` notebook. See below some detection examples:
 
-<center><img align="center" height="600" src="static/success-1.png" alt="Screenshot in static folder"></center>
+<center><img align="center" src="static/Success-1.png" alt="Screenshot in static folder"></center>
 <br>
-<center><img align="center" height="600" src="static/success-batch-1.png" alt="Screenshot in static folder"></center>
+<center><img align="center" src="static/Success-batch-1.png" alt="Screenshot in static folder"></center>
 <br>
-<center><img align="center" height="600" src="static/success-batch-2.png" alt="Screenshot in static folder"></center>
+<center><img align="center" src="static/Success-batch-2.png" alt="Screenshot in static folder"></center>
 <br>
 
 You can also find more details on the mAP metric in these 2 blog posts: [link](https://www.jeremyjordan.me/evaluating-image-segmentation-models/) and [link](https://towardsdatascience.com/breaking-down-mean-average-precision-map-ae462f623a52).
@@ -94,14 +94,14 @@ When using the app, all the satellite images downloaded through the interface an
 
 While running, the app displays status information at each step in the terminal. In the web interface, the user can select coordinates (latitude/longitude) and area size from an embedded javascript `Leaflet` map. The app then checks if there are buildings (and therefore, potentially solar panels) in the area through OpenStreetMap's `Overpass` API, and downloads high-resolution satellite images from Google Static API (0.1m resolution, 200m width image tiles).
 
-<center><img align="center" height="400" src="static/Terminal.png" alt="Screenshot in static folder"></center>
+<center><img align="center" height="300" src="static/Terminal.png" alt="Screenshot in static folder"></center>
 <br>
 
 Finally, the app performs solar panels instance segementation using our trained Mask R-CNN model and redirects to the `\success` (or `\success\batch`) page, where the user can visualize results overlayed on a Leaflet map. They can also download a detection summary (Excel format) and a GeoJSON file holding coordinates for all the polygons corresponding to the detected solar arrays.
 
-<center><img align="center" height="600" src="static/Home-1.png" alt="Screenshot in static folder"></center>
+<center><img align="center" src="static/Home-1.png" alt="Screenshot in static folder"></center>
 <br>
-<center><img align="center" height="600" src="static/Home-2.png" alt="Screenshot in static folder"></center>
+<center><img align="center" src="static/Home-2.png" alt="Screenshot in static folder"></center>
 <br>
 
 * Next steps
